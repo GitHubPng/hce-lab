@@ -1,4 +1,27 @@
 <resources>
-    <string name="app_name">HCE Lab Reader</string>
-    <string name="initial_instructions">Aguardando leitura…\n\nInstale este app num celular DIFERENTE do que roda o HCE Lab (MyHostApduService). Encoste os dois celulares. Este app manda o SELECT do AID do Lab Protocol e mostra a resposta.</string>
+    <string name="app_name">HCE Lab · Leitor NFC</string>
+
+    <string name="header_title">Leitor NFC</string>
+    <string name="header_subtitle">Aproxime uma tag para ler os dados</string>
+
+    <string name="status_waiting">Pronto para ler</string>
+    <string name="status_waiting_hint">Encoste uma tag NFC na parte de trás do aparelho</string>
+    <string name="status_reading">Lendo tag…</string>
+    <string name="status_done">Tag lida com sucesso</string>
+    <string name="status_no_nfc">Este aparelho não tem NFC</string>
+    <string name="status_no_nfc_hint">Sem hardware NFC, este app não consegue ler tags. Use um aparelho com NFC.</string>
+
+    <string name="clear">Limpar</string>
+
+    <!-- Rótulos de campo -->
+    <string name="label_type">Tipo</string>
+    <string name="label_uid">UID</string>
+    <string name="label_techs">Tecnologias</string>
+    <string name="label_atqa">ATQA</string>
+    <string name="label_sak">SAK</string>
+    <string name="label_max_transceive">Transceive máx.</string>
+
+    <string name="section_summary">Resumo da tag</string>
+    <string name="section_ndef">Conteúdo NDEF</string>
+    <string name="section_lab">Lab Protocol (HCE)</string>
 </resources>

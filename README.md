@@ -95,15 +95,14 @@ máquina de estados isoladamente:
 ./gradlew :app:test
 ```
 
-## Como testar sem hardware dedicado (reader-tool)
+## Leitor NFC (reader-tool)
 
 Este repositório tem **dois módulos**, para dois papéis diferentes:
 
 - `app`: o cartão emulado (HCE) — `MyHostApduService` + Lab Protocol.
-- `reader-tool`: um leitor mínimo, feito para este projeto, que envia o
-  SELECT do AID do Lab Protocol via `IsoDep.transceive()` e mostra a
-  resposta crua na tela. Existe só para validação manual — sem testes
-  automatizados, sem pretensão de crescer além disso.
+- `reader-tool`: um **leitor de tags NFC** com interface limpa. Começou
+  como utilitário de depuração (mandava só o SELECT do Lab Protocol e
+  mostrava hex cru numa TextView) e evoluiu para um leitor genérico.
 
 **Por que um app próprio em vez de um app de terceiros ("NFC Tools" etc.):**
 eu não controlo (nem verifiquei) se apps de terceiros realmente expõem
@@ -111,7 +110,27 @@ envio de APDU com AID customizado. Um leitor próprio elimina essa
 incerteza — a mesma lógica de "nada de dependência não verificada" que
 guiou as decisões anteriores deste projeto.
 
-### Passo a passo
+### O que o leitor mostra
+
+Ao encostar qualquer tag NFC, o app entra em modo leitor e apresenta, em
+cards (tema claro/escuro conforme o aparelho):
+
+- **Resumo da tag**: tipo (MIFARE Classic/Ultralight/NTAG, ISO-DEP,
+  NFC-A/B/F/V…), UID em hex, ATQA/SAK, tamanho máximo de transceive e a
+  lista de tecnologias suportadas.
+- **Conteúdo NDEF**: cada record decodificado — Texto (com idioma),
+  URI/Link (tabela de prefixos do NFC Forum), MIME, tipo externo — além
+  de tipo, ocupação e se a tag é gravável.
+- **Lab Protocol (HCE)**: quando a tag é ISO-DEP, envia o SELECT do AID
+  `F0010203040506` e mostra a resposta e o tempo — é assim que se valida
+  o `MyHostApduService` do módulo `app`, agora dentro de uma leitura
+  genérica de NFC.
+
+A leitura de hardware e o parsing ficam em
+`readertool/nfc/` (`NfcTagReader`, `NdefParser`); a `MainActivity` só
+cuida de UI e do ciclo do `NfcAdapter` em modo leitor.
+
+### Testando o Lab Protocol (HCE) com dois celulares
 
 1. Você precisa de **dois celulares Android com NFC**. Não precisam ser
    seus — pedir um celular de um colega por alguns minutos é suficiente.
@@ -123,13 +142,14 @@ guiou as decisões anteriores deste projeto.
    Ative o NFC. Abra o app — ele já entra em modo leitor ao abrir.
 4. Encoste as costas dos dois celulares (onde fica a antena NFC,
    geralmente perto da câmera traseira).
-5. No celular B (o leitor), a tela deve mostrar algo como:
-   ```
-   [14:32:10] SELECT enviado -> resposta: 90 00 (12ms)
-      -> SUCESSO (90 00). Lab Protocol respondeu corretamente.
-   ```
+5. No celular B (o leitor), o card **Lab Protocol (HCE)** deve mostrar a
+   resposta `90 00` e "SUCESSO — Lab Protocol respondeu corretamente".
 6. Filtre o Logcat do **celular A** por `HceLab` para ver o lado do
    serviço (estado da sessão, tempo de processamento).
+
+Você também pode encostar **qualquer tag NFC comum** (cartão de
+transporte, etiqueta NTAG, crachá) no celular B para ver o resumo e o
+conteúdo NDEF — sem precisar do celular A.
 
 Se a tela do leitor não mostrar nada ao encostar: confira se o NFC está
 ativo nos dois aparelhos, se o celular A não está bloqueado

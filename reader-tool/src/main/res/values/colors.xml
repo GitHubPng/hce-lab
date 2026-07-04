@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Paleta principal (indigo/cyan). Usada tanto no tema claro quanto
+         referenciada pelo tema escuro em values-night. -->
+    <color name="indigo">#4F46E5</color>
+    <color name="indigo_dark">#3730A3</color>
+    <color name="indigo_light">#EEF2FF</color>
+    <color name="cyan">#0891B2</color>
+    <color name="cyan_light">#CFFAFE</color>
+
+    <color name="success">#16A34A</color>
+    <color name="success_container">#DCFCE7</color>
+    <color name="error">#DC2626</color>
+    <color name="error_container">#FEE2E2</color>
+
+    <color name="bg_light">#F4F5FB</color>
+    <color name="surface_light">#FFFFFF</color>
+    <color name="on_surface_light">#1E1B2E</color>
+    <color name="on_surface_muted_light">#6B7280</color>
+
+    <color name="bg_dark">#0B1020</color>
+    <color name="surface_dark">#161C2E</color>
+    <color name="on_surface_dark">#E8EAF2</color>
+    <color name="on_surface_muted_dark">#9AA3B8</color>
+
+    <color name="white">#FFFFFF</color>
+</resources>
