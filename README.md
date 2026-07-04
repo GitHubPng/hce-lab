@@ -86,20 +86,55 @@ relatório de testes como artifact, e depois gera e publica o APK debug
 de release é assunto de Fase futura, não faz sentido antes de existir
 alguma funcionalidade real além do esqueleto de HCE.
 
-## Como testar sem leitor físico
+## Testes unitários (sem hardware, sem emulador)
 
-Rode `ApduParserTest`, `ResponseApduTest` e `LabProtocolTest` (JUnit4,
-sem Android Instrumented Test, sem emulador). Eles validam parser e
-máquina de estados isoladamente.
+`ApduParserTest`, `ResponseApduTest` e `LabProtocolTest` validam parser e
+máquina de estados isoladamente:
 
-## Como testar com hardware
+```bash
+./gradlew :app:test
+```
 
-1. Instale o app num celular Android com NFC, API 24+.
-2. Use outro celular com "NFC Tools" em modo leitor, ou um PN532 com
-   `nfc-select F0010203040506`, para simular o SELECT.
-3. Acompanhe o Logcat filtrando por `HceLab`.
-4. Esperado: SELECT do AID correto → `90 00` + log "-> Selected".
-   SELECT de AID errado → `6A 82`.
+## Como testar sem hardware dedicado (reader-tool)
+
+Este repositório tem **dois módulos**, para dois papéis diferentes:
+
+- `app`: o cartão emulado (HCE) — `MyHostApduService` + Lab Protocol.
+- `reader-tool`: um leitor mínimo, feito para este projeto, que envia o
+  SELECT do AID do Lab Protocol via `IsoDep.transceive()` e mostra a
+  resposta crua na tela. Existe só para validação manual — sem testes
+  automatizados, sem pretensão de crescer além disso.
+
+**Por que um app próprio em vez de um app de terceiros ("NFC Tools" etc.):**
+eu não controlo (nem verifiquei) se apps de terceiros realmente expõem
+envio de APDU com AID customizado. Um leitor próprio elimina essa
+incerteza — a mesma lógica de "nada de dependência não verificada" que
+guiou as decisões anteriores deste projeto.
+
+### Passo a passo
+
+1. Você precisa de **dois celulares Android com NFC**. Não precisam ser
+   seus — pedir um celular de um colega por alguns minutos é suficiente.
+2. No **celular A**: instale o APK do módulo `app` (artifact
+   `app-debug-apk` do GitHub Actions, ou `./gradlew :app:installDebug`
+   com o celular conectado via USB/ADB). Ative o NFC nas configurações.
+3. No **celular B**: instale o APK do módulo `reader-tool` (artifact
+   `reader-tool-debug-apk`, ou `./gradlew :reader-tool:installDebug`).
+   Ative o NFC. Abra o app — ele já entra em modo leitor ao abrir.
+4. Encoste as costas dos dois celulares (onde fica a antena NFC,
+   geralmente perto da câmera traseira).
+5. No celular B (o leitor), a tela deve mostrar algo como:
+   ```
+   [14:32:10] SELECT enviado -> resposta: 90 00 (12ms)
+      -> SUCESSO (90 00). Lab Protocol respondeu corretamente.
+   ```
+6. Filtre o Logcat do **celular A** por `HceLab` para ver o lado do
+   serviço (estado da sessão, tempo de processamento).
+
+Se a tela do leitor não mostrar nada ao encostar: confira se o NFC está
+ativo nos dois aparelhos, se o celular A não está bloqueado
+(`requireDeviceUnlock="true"` exige desbloqueio), e se não há outro app
+HCE instalado no celular A com o mesmo AID (ver seção de colisão de AID).
 
 ## Problema conhecido a testar: colisão de AID
 
