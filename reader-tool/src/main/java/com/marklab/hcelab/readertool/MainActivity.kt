@@ -1,62 +1,76 @@
 package com.marklab.hcelab.readertool
 
-import android.app.Activity
 import android.nfc.NfcAdapter
 import android.nfc.Tag
-import android.nfc.tech.IsoDep
+import android.os.Build
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.HorizontalScrollView
+import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import androidx.appcompat.app.AppCompatActivity
+import com.marklab.hcelab.readertool.nfc.NdefInfo
+import com.marklab.hcelab.readertool.nfc.NdefRecordInfo
+import com.marklab.hcelab.readertool.nfc.NfcTagReader
+import com.marklab.hcelab.readertool.nfc.TagInfo
 
 /**
- * App leitor mínimo para validar o Lab Protocol (Fase 1 do hce-lab) sem
- * depender de um app de terceiros cujo suporte a APDU customizado eu não
- * controlo.
+ * Leitor NFC do HCE Lab.
  *
- * Instale num SEGUNDO celular Android com NFC — este app é o LEITOR, não
- * o cartão. O cartão emulado (MyHostApduService) roda no primeiro celular,
- * no app principal deste repositório.
+ * Evoluiu do utilitário de depuração original (que só mandava um SELECT do
+ * Lab Protocol e cuspia hex numa TextView) para um leitor de tags genérico:
+ * lê UID, tecnologias, tipo, ATQA/SAK, mensagens NDEF (texto, link, MIME…)
+ * e, quando a tag é ISO-DEP, ainda roda o teste do Lab Protocol — então
+ * encostar no celular que roda o MyHostApduService continua funcionando.
  *
- * Fluxo: ao aproximar do celular-cartão, envia o SELECT do AID do Lab
- * Protocol (F0010203040506) e mostra a resposta crua (hex) na tela.
- *
- * Este app existe só para depuração manual — não faz parte do produto,
- * não tem testes automatizados, e não deve crescer além disso sem
- * necessidade concreta.
+ * A Activity só cuida de UI e do ciclo do NfcAdapter em modo leitor. Toda a
+ * leitura de hardware e o parsing vivem em [NfcTagReader] / NdefParser.
  */
-class MainActivity : Activity(), NfcAdapter.ReaderCallback {
+class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
 
-    private lateinit var logView: TextView
     private var nfcAdapter: NfcAdapter? = null
 
-    // 00 A4 04 00 07 F0 01 02 03 04 05 06 -> SELECT do AID F0010203040506
-    // Precisa bater exatamente com LabProtocol.AID_HEX no app principal.
-    private val selectApdu = byteArrayOf(
-        0x00, 0xA4.toByte(), 0x04, 0x00, 0x07,
-        0xF0.toByte(), 0x01, 0x02, 0x03, 0x04, 0x05, 0x06
-    )
+    private lateinit var statusIcon: ImageView
+    private lateinit var statusText: TextView
+    private lateinit var statusHint: TextView
+    private lateinit var resultsContainer: LinearLayout
+    private lateinit var clearButton: ImageButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        logView = findViewById(R.id.logView)
-        nfcAdapter = NfcAdapter.getDefaultAdapter(this)
 
+        statusIcon = findViewById(R.id.statusIcon)
+        statusText = findViewById(R.id.statusText)
+        statusHint = findViewById(R.id.statusHint)
+        resultsContainer = findViewById(R.id.resultsContainer)
+        clearButton = findViewById(R.id.clearButton)
+
+        clearButton.setOnClickListener { reset() }
+
+        nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         if (nfcAdapter == null) {
-            appendLog("ERRO: este dispositivo não tem NFC. Use outro celular como leitor.")
+            showNoNfc()
         }
     }
 
     override fun onResume() {
         super.onResume()
+        // Modo leitor: cobre NFC-A/B/F/V. Não usamos SKIP_NDEF para que o
+        // sistema já resolva o NDEF durante o dispatch (cachedNdefMessage).
         nfcAdapter?.enableReaderMode(
             this,
             this,
             NfcAdapter.FLAG_READER_NFC_A or
                 NfcAdapter.FLAG_READER_NFC_B or
-                NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK,
+                NfcAdapter.FLAG_READER_NFC_F or
+                NfcAdapter.FLAG_READER_NFC_V,
             null
         )
     }
@@ -66,45 +80,169 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         nfcAdapter?.disableReaderMode(this)
     }
 
+    /** Roda numa thread do sistema, não na main. */
     override fun onTagDiscovered(tag: Tag) {
-        val isoDep = IsoDep.get(tag)
-        if (isoDep == null) {
-            appendLog("Tag detectada, mas não é ISO-DEP (ISO 14443-4) — não é o nosso HCE.")
-            return
+        runOnUiThread { showReading() }
+        val info = NfcTagReader.read(tag)
+        runOnUiThread { render(info) }
+    }
+
+    // --- Estados da UI ---------------------------------------------------
+
+    private fun showNoNfc() {
+        statusIcon.setImageResource(R.drawable.ic_error)
+        statusText.setText(R.string.status_no_nfc)
+        statusHint.setText(R.string.status_no_nfc_hint)
+    }
+
+    private fun showReading() {
+        statusIcon.setImageResource(R.drawable.ic_nfc)
+        statusText.setText(R.string.status_reading)
+        statusHint.setText(R.string.status_waiting_hint)
+    }
+
+    private fun reset() {
+        resultsContainer.removeAllViews()
+        clearButton.visibility = View.GONE
+        statusIcon.setImageResource(R.drawable.ic_nfc)
+        statusText.setText(R.string.status_waiting)
+        statusHint.setText(R.string.status_waiting_hint)
+    }
+
+    private fun render(info: TagInfo) {
+        vibrate()
+        statusIcon.setImageResource(R.drawable.ic_check_circle)
+        statusText.setText(R.string.status_done)
+        statusHint.text = getString(R.string.header_subtitle)
+        clearButton.visibility = View.VISIBLE
+
+        resultsContainer.removeAllViews()
+        renderSummary(info)
+        info.ndef?.let { renderNdef(it) }
+        info.labProtocol?.let { renderLab(it) }
+    }
+
+    // --- Cards -----------------------------------------------------------
+
+    private fun renderSummary(info: TagInfo) {
+        val body = addSectionCard(getString(R.string.section_summary), R.drawable.ic_tag)
+        addKvRow(body, getString(R.string.label_type), info.tagType)
+        addKvRow(body, getString(R.string.label_uid), "${info.uidHex}  (${info.uidBytes} bytes)")
+        info.atqa?.let { addKvRow(body, getString(R.string.label_atqa), it) }
+        info.sak?.let { addKvRow(body, getString(R.string.label_sak), it) }
+        info.maxTransceiveLength?.let {
+            addKvRow(body, getString(R.string.label_max_transceive), "$it bytes")
         }
+        addChipsRow(body, getString(R.string.label_techs), info.technologies)
+    }
 
-        try {
-            isoDep.connect()
-            isoDep.timeout = 5000
-
-            val startNanos = System.nanoTime()
-            val response = isoDep.transceive(selectApdu)
-            val elapsedMs = (System.nanoTime() - startNanos) / 1_000_000
-
-            val hexResponse = response.joinToString(" ") { "%02X".format(it) }
-            val timestamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-
-            appendLog("[$timestamp] SELECT enviado -> resposta: $hexResponse (${elapsedMs}ms)")
-            val isSuccess = response.size >= 2 &&
-                response[response.size - 2] == 0x90.toByte() &&
-                response[response.size - 1] == 0x00.toByte()
-            if (isSuccess) {
-                appendLog("   -> SUCESSO (90 00). Lab Protocol respondeu corretamente.")
-            } else {
-                appendLog("   -> Resposta inesperada. Ver StatusWord.kt no app principal.")
-            }
-        } catch (e: Exception) {
-            appendLog("Erro na transação: ${e.message}")
-        } finally {
-            try {
-                isoDep.close()
-            } catch (_: Exception) {
-                // Ignorado de propósito: falha ao fechar não deve mascarar o resultado já logado.
-            }
+    private fun renderNdef(ndef: NdefInfo) {
+        val body = addSectionCard(getString(R.string.section_ndef), R.drawable.ic_link)
+        addKvRow(body, getString(R.string.label_type), ndef.typeLabel)
+        addKvRow(
+            body,
+            "Ocupação",
+            "${ndef.currentSizeBytes} / ${ndef.maxSizeBytes} bytes" +
+                if (ndef.writable) "  · gravável" else "  · somente leitura"
+        )
+        if (ndef.records.isEmpty()) {
+            addKvRow(body, "Records", "Nenhum record NDEF")
+        } else {
+            ndef.records.forEach { addNdefRecord(body, it) }
         }
     }
 
-    private fun appendLog(message: String) {
-        runOnUiThread { logView.append("\n$message") }
+    private fun renderLab(lab: com.marklab.hcelab.readertool.nfc.LabProtocolResult) {
+        val body = addSectionCard(
+            getString(R.string.section_lab),
+            if (lab.success) R.drawable.ic_check_circle else R.drawable.ic_error
+        )
+        addKvRow(body, "Resposta", lab.responseHex)
+        if (lab.elapsedMs > 0) addKvRow(body, "Tempo", "${lab.elapsedMs} ms")
+        val note = TextView(this).apply {
+            text = lab.note
+            textSize = 14f
+            setTextColor(colorOnSurfaceVariant())
+            setPadding(0, dp(6), 0, 0)
+        }
+        body.addView(note)
+    }
+
+    // --- Helpers de construção de views ---------------------------------
+
+    private fun addSectionCard(title: String, iconRes: Int): LinearLayout {
+        val card = LayoutInflater.from(this)
+            .inflate(R.layout.view_section_card, resultsContainer, false)
+        card.findViewById<TextView>(R.id.sectionTitle).text = title
+        card.findViewById<ImageView>(R.id.sectionIcon).setImageResource(iconRes)
+        resultsContainer.addView(card)
+        return card.findViewById(R.id.sectionBody)
+    }
+
+    private fun addKvRow(parent: LinearLayout, label: String, value: String) {
+        val row = LayoutInflater.from(this).inflate(R.layout.view_kv_row, parent, false)
+        row.findViewById<TextView>(R.id.rowLabel).text = label
+        row.findViewById<TextView>(R.id.rowValue).text = value
+        parent.addView(row)
+    }
+
+    private fun addChipsRow(parent: LinearLayout, label: String, values: List<String>) {
+        val labelView = TextView(this).apply {
+            text = label
+            textSize = 14f
+            setTextColor(colorOnSurfaceVariant())
+            setPadding(0, dp(8), 0, dp(6))
+        }
+        parent.addView(labelView)
+
+        val strip = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        values.forEach { tech ->
+            val chip = LayoutInflater.from(this)
+                .inflate(R.layout.view_chip, strip, false) as TextView
+            chip.text = tech
+            (chip.layoutParams as ViewGroup.MarginLayoutParams).marginEnd = dp(8)
+            strip.addView(chip)
+        }
+        val scroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(strip)
+        }
+        parent.addView(scroll)
+    }
+
+    private fun addNdefRecord(parent: LinearLayout, record: NdefRecordInfo) {
+        val view = LayoutInflater.from(this).inflate(R.layout.view_ndef_record, parent, false)
+        view.findViewById<TextView>(R.id.recordKind).text = record.kind
+        view.findViewById<TextView>(R.id.recordContent).text = record.content
+        val detail = view.findViewById<TextView>(R.id.recordDetail)
+        if (record.detail.isNullOrBlank()) {
+            detail.visibility = View.GONE
+        } else {
+            detail.text = record.detail
+        }
+        parent.addView(view)
+    }
+
+    // --- Utilidades ------------------------------------------------------
+
+    private fun colorOnSurfaceVariant(): Int {
+        val tv = android.util.TypedValue()
+        theme.resolveAttribute(
+            com.google.android.material.R.attr.colorOnSurfaceVariant, tv, true
+        )
+        return tv.data
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    @Suppress("DEPRECATION")
+    private fun vibrate() {
+        val vibrator = getSystemService(VIBRATOR_SERVICE) as? Vibrator ?: return
+        if (!vibrator.hasVibrator()) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            vibrator.vibrate(40)
+        }
     }
 }
