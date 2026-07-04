@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    requireDeviceUnlock="true": decisão deliberada.
+
+    Para um laboratório que existe para estudar controle de acesso, deixar
+    isso em "false" (responder ao leitor com o celular bloqueado) seria uma
+    escolha de segurança sem justificativa. Só mude para "false" se tiver
+    um motivo concreto e documentar esse motivo aqui.
+-->
+<host-apdu-service
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:requireDeviceUnlock="true"
+    android:description="@string/hce_service_description">
+
+    <!--
+        AID de uso privado (ISO/IEC 7816-5, categoria F0-FE).
+        Não corresponde a nenhum sistema real. Precisa bater exatamente
+        com AID_HEX em LabProtocol.kt.
+    -->
+    <aid-group
+        android:category="other"
+        android:description="@string/hce_aid_group_description">
+
+        <aid-filter android:name="F0010203040506" />
+
+    </aid-group>
+
+</host-apdu-service>

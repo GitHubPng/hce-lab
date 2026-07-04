@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Sem isso, o Android nunca entrega comandos APDU ao serviço -->
+    <uses-permission android:name="android.permission.NFC" />
+
+    <uses-feature
+        android:name="android.hardware.nfc.hce"
+        android:required="true" />
+
+    <application
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.AppCompat">
+
+        <!--
+            android:exported="true" é obrigatório aqui (não é uma escolha
+            frouxa de segurança): o sistema NFC precisa poder invocar este
+            serviço de fora do próprio processo do app.
+            A proteção real vem de android:permission
+            (BIND_NFC_SERVICE só é concedida ao subsistema NFC do sistema).
+        -->
+        <service
+            android:name=".nfc.MyHostApduService"
+            android:exported="true"
+            android:permission="android.permission.BIND_NFC_SERVICE">
+
+            <intent-filter>
+                <action android:name="android.nfc.cardemulation.action.HOST_APDU_SERVICE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.nfc.cardemulation.host_apdu_service"
+                android:resource="@xml/apduservice" />
+
+        </service>
+
+    </application>
+
+</manifest>

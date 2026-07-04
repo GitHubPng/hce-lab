@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">HCE Lab</string>
+    <string name="hce_service_description">Lab Protocol — serviço de emulação NFC para aprendizado</string>
+    <string name="hce_aid_group_description">Lab Protocol (AID proprietário, uso educacional)</string>
+</resources>
