@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Variantes escuras dos aliases usados dentro de drawables. -->
+    <color name="icon_primary">#A5B4FC</color>
+    <color name="icon_secondary">#67E8F9</color>
+    <color name="primary_container">#312E81</color>
+    <color name="secondary_container">#155E75</color>
+</resources>

@@ -24,4 +24,13 @@
     <color name="on_surface_muted_dark">#9AA3B8</color>
 
     <color name="white">#FFFFFF</color>
+
+    <!-- Aliases usados DENTRO de drawables (shapes e tint de vetores).
+         Drawables não resolvem ?attr/ de tema de forma confiável em todos
+         os aparelhos — resolver via cor concreta (com variante -night)
+         evita crash de inflação. Layouts continuam podendo usar ?attr/. -->
+    <color name="icon_primary">#4F46E5</color>
+    <color name="icon_secondary">#0891B2</color>
+    <color name="primary_container">#EEF2FF</color>
+    <color name="secondary_container">#CFFAFE</color>
 </resources>
