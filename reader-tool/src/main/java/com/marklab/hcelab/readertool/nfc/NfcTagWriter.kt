@@ -63,7 +63,7 @@ object NfcTagWriter {
             ndef.writeNdefMessage(message)
             WriteResult(true, "Gravado com sucesso ($size bytes).", size)
         } catch (e: Exception) {
-            WriteResult(false, "Falha ao gravar: ${e.message}", 0)
+            WriteResult(false, "Falha ao gravar: ${describe(e)}", 0)
         } finally {
             try {
                 ndef.close()
@@ -80,7 +80,13 @@ object NfcTagWriter {
             val size = message.toByteArray().size
             WriteResult(true, "Tag formatada e gravada ($size bytes).", size)
         } catch (e: Exception) {
-            WriteResult(false, "Falha ao formatar/gravar: ${e.message}", 0)
+            WriteResult(
+                false,
+                "Falha ao formatar/gravar: ${describe(e)}. " +
+                    "Tags MIFARE Classic muitas vezes não formatam nestes aparelhos — " +
+                    "use uma NTAG/Ultralight se possível.",
+                0
+            )
         } finally {
             try {
                 formatable.close()
@@ -88,5 +94,15 @@ object NfcTagWriter {
                 // Ver comentário em writeToNdef.
             }
         }
+    }
+
+    /**
+     * Exceções de NFC (TagLostException, FormatException, IOException) muitas
+     * vezes vêm com message nula. Sem isto, o usuário via só "null". Mostrar
+     * o nome da classe já diz o que aconteceu (ex.: tag saiu do campo).
+     */
+    private fun describe(e: Exception): String {
+        val msg = e.message
+        return if (msg.isNullOrBlank()) e.javaClass.simpleName else "${e.javaClass.simpleName}: $msg"
     }
 }

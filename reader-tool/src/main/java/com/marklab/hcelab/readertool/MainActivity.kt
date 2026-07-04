@@ -119,16 +119,23 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
     override fun onResume() {
         super.onResume()
         if (startupFailed) return
-        // Modo leitor: cobre NFC-A/B/F/V. Não usamos SKIP_NDEF para que o
-        // sistema já resolva o NDEF durante o dispatch (cachedNdefMessage).
+        // Modo leitor cobrindo NFC-A/B/F/V. SKIP_NDEF_CHECK: nós mesmos
+        // lemos o NDEF (Ndef.connect + getNdefMessage), então não queremos
+        // que a plataforma faça o check dela — isso atrapalha a gravação/
+        // formatação, segurando a conexão com a tag. O presence-check mais
+        // longo evita "tag lost" no meio de um format multi-etapas.
+        val extras = Bundle().apply {
+            putInt(NfcAdapter.EXTRA_READER_PRESENCE_CHECK_DELAY, 2000)
+        }
         nfcAdapter?.enableReaderMode(
             this,
             this,
             NfcAdapter.FLAG_READER_NFC_A or
                 NfcAdapter.FLAG_READER_NFC_B or
                 NfcAdapter.FLAG_READER_NFC_F or
-                NfcAdapter.FLAG_READER_NFC_V,
-            null
+                NfcAdapter.FLAG_READER_NFC_V or
+                NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK,
+            extras
         )
     }
 
