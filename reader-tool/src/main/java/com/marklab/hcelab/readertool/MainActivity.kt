@@ -1,5 +1,6 @@
 package com.marklab.hcelab.readertool
 
+import android.nfc.NdefMessage
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.os.Build
@@ -16,9 +17,15 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.widget.addTextChangedListener
+import com.google.android.material.button.MaterialButtonToggleGroup
+import com.google.android.material.card.MaterialCardView
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import com.marklab.hcelab.readertool.nfc.NdefInfo
 import com.marklab.hcelab.readertool.nfc.NdefRecordInfo
 import com.marklab.hcelab.readertool.nfc.NfcTagReader
+import com.marklab.hcelab.readertool.nfc.NfcTagWriter
 import com.marklab.hcelab.readertool.nfc.TagInfo
 
 /**
@@ -43,6 +50,19 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
     private lateinit var resultsContainer: LinearLayout
     private lateinit var clearButton: ImageButton
 
+    private lateinit var writeCard: MaterialCardView
+    private lateinit var writeInputLayout: TextInputLayout
+    private lateinit var writeInput: TextInputEditText
+    private lateinit var exampleChips: LinearLayout
+
+    private enum class Mode { READ, WRITE }
+    private enum class WriteType { TEXT, LINK }
+
+    private var mode = Mode.READ
+    // Lidos em onTagDiscovered, que roda fora da thread principal — por isso
+    // @Volatile e espelhados aqui em vez de ler a View direto de outra thread.
+    @Volatile private var writeType = WriteType.TEXT
+    @Volatile private var pendingWriteContent = ""
     private var startupFailed = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,8 +78,18 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
             statusHint = findViewById(R.id.statusHint)
             resultsContainer = findViewById(R.id.resultsContainer)
             clearButton = findViewById(R.id.clearButton)
+            writeCard = findViewById(R.id.writeCard)
+            writeInputLayout = findViewById(R.id.writeInputLayout)
+            writeInput = findViewById(R.id.writeInput)
+            exampleChips = findViewById(R.id.exampleChips)
 
             clearButton.setOnClickListener { reset() }
+            writeInput.addTextChangedListener { editable ->
+                pendingWriteContent = editable?.toString().orEmpty()
+            }
+            setupModeToggle()
+            setupTypeToggle()
+            applyWriteType()
 
             nfcAdapter = NfcAdapter.getDefaultAdapter(this)
             if (nfcAdapter == null) {
@@ -109,9 +139,108 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
 
     /** Roda numa thread do sistema, não na main. */
     override fun onTagDiscovered(tag: Tag) {
-        runOnUiThread { showReading() }
-        val info = NfcTagReader.read(tag)
-        runOnUiThread { render(info) }
+        if (mode == Mode.WRITE) {
+            handleWrite(tag)
+        } else {
+            runOnUiThread { showReading() }
+            val info = NfcTagReader.read(tag)
+            runOnUiThread { render(info) }
+        }
+    }
+
+    // --- Modos e formulário de gravação ----------------------------------
+
+    private fun setupModeToggle() {
+        val modeToggle = findViewById<MaterialButtonToggleGroup>(R.id.modeToggle)
+        modeToggle.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (!isChecked) return@addOnButtonCheckedListener
+            mode = if (checkedId == R.id.btnWrite) Mode.WRITE else Mode.READ
+            applyMode()
+        }
+    }
+
+    private fun setupTypeToggle() {
+        val typeToggle = findViewById<MaterialButtonToggleGroup>(R.id.typeToggle)
+        typeToggle.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (!isChecked) return@addOnButtonCheckedListener
+            writeType = if (checkedId == R.id.typeLink) WriteType.LINK else WriteType.TEXT
+            applyWriteType()
+        }
+    }
+
+    /** Alterna a tela entre ler e gravar. O modo leitor do NFC serve aos dois. */
+    private fun applyMode() {
+        if (mode == Mode.WRITE) {
+            writeCard.visibility = View.VISIBLE
+            resultsContainer.visibility = View.GONE
+            resultsContainer.removeAllViews()
+            clearButton.visibility = View.GONE
+            statusIcon.setImageResource(R.drawable.ic_edit)
+            statusText.setText(R.string.status_write_ready)
+            statusHint.setText(R.string.status_write_ready_hint)
+        } else {
+            writeCard.visibility = View.GONE
+            resultsContainer.visibility = View.VISIBLE
+            statusIcon.setImageResource(R.drawable.ic_nfc)
+            statusText.setText(R.string.status_waiting)
+            statusHint.setText(R.string.status_waiting_hint)
+        }
+    }
+
+    /** Ajusta o hint do campo e os exemplos conforme Texto ou Link. */
+    private fun applyWriteType() {
+        val examples: List<String>
+        if (writeType == WriteType.LINK) {
+            writeInputLayout.hint = getString(R.string.write_hint_link)
+            writeInput.inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                android.text.InputType.TYPE_TEXT_VARIATION_URI
+            examples = listOf(
+                "https://github.com/GitHubPng/hce-lab",
+                "https://example.com",
+                "tel:+5511999990000",
+                "mailto:contato@example.com"
+            )
+        } else {
+            writeInputLayout.hint = getString(R.string.write_hint_text)
+            writeInput.inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            examples = listOf(
+                "Olá, mundo!",
+                "Tag do HCE Lab",
+                "Sala 101 — acesso liberado"
+            )
+        }
+        populateExamples(examples)
+    }
+
+    private fun populateExamples(examples: List<String>) {
+        exampleChips.removeAllViews()
+        examples.forEach { value ->
+            val chip = LayoutInflater.from(this)
+                .inflate(R.layout.view_chip, exampleChips, false) as TextView
+            chip.text = value
+            (chip.layoutParams as ViewGroup.MarginLayoutParams).marginEnd = dp(8)
+            chip.setOnClickListener {
+                writeInput.setText(value)
+                writeInput.setSelection(value.length)
+            }
+            exampleChips.addView(chip)
+        }
+    }
+
+    private fun handleWrite(tag: Tag) {
+        val content = pendingWriteContent.trim()
+        if (content.isEmpty()) {
+            runOnUiThread { showWriteEmpty() }
+            return
+        }
+        val message: NdefMessage = when (writeType) {
+            WriteType.LINK -> NfcTagWriter.uriMessage(content)
+            WriteType.TEXT -> NfcTagWriter.textMessage(content)
+        }
+        runOnUiThread { showWriting() }
+        val result = NfcTagWriter.write(tag, message)
+        runOnUiThread { showWriteResult(result) }
     }
 
     // --- Estados da UI ---------------------------------------------------
@@ -126,6 +255,29 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
         statusIcon.setImageResource(R.drawable.ic_nfc)
         statusText.setText(R.string.status_reading)
         statusHint.setText(R.string.status_waiting_hint)
+    }
+
+    private fun showWriting() {
+        statusIcon.setImageResource(R.drawable.ic_edit)
+        statusText.setText(R.string.status_writing)
+        statusHint.setText(R.string.write_instruction)
+    }
+
+    private fun showWriteEmpty() {
+        statusIcon.setImageResource(R.drawable.ic_error)
+        statusText.setText(R.string.status_write_ready)
+        statusHint.setText(R.string.write_empty)
+    }
+
+    private fun showWriteResult(result: NfcTagWriter.WriteResult) {
+        vibrate()
+        statusIcon.setImageResource(
+            if (result.success) R.drawable.ic_check_circle else R.drawable.ic_error
+        )
+        statusText.setText(
+            if (result.success) R.string.status_write_ok else R.string.status_write_fail
+        )
+        statusHint.text = result.message
     }
 
     private fun reset() {

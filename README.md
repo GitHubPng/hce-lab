@@ -130,6 +130,23 @@ A leitura de hardware e o parsing ficam em
 `readertool/nfc/` (`NfcTagReader`, `NdefParser`); a `MainActivity` só
 cuida de UI e do ciclo do `NfcAdapter` em modo leitor.
 
+### Gravar dados em tags
+
+No topo há um alternador **Ler / Gravar**. No modo **Gravar**:
+
+1. Escolha o tipo: **Texto** (record NDEF RTD_TEXT) ou **Link / URL**
+   (record NDEF RTD_URI — aceita `https://`, `tel:`, `mailto:`, etc.).
+2. Digite o conteúdo, ou toque num dos **exemplos** para preencher.
+3. Encoste uma tag NFC gravável — o app grava a mensagem NDEF e mostra o
+   resultado (bytes gravados, ou o motivo da falha: tag protegida, sem
+   espaço, ou que não suporta NDEF).
+
+A gravação cobre tags já formatadas em NDEF (`Ndef`) e tags virgens
+formatáveis (`NdefFormatable`, formatadas na hora). A lógica fica em
+`readertool/nfc/NfcTagWriter`, espelhando o `NfcTagReader`. Depois de
+gravar, volte para o modo **Ler** e encoste a mesma tag para conferir o
+conteúdo.
+
 ### Testando o Lab Protocol (HCE) com dois celulares
 
 1. Você precisa de **dois celulares Android com NFC**. Não precisam ser

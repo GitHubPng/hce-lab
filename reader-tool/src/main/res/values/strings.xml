@@ -24,4 +24,24 @@
     <string name="section_summary">Resumo da tag</string>
     <string name="section_ndef">Conteúdo NDEF</string>
     <string name="section_lab">Lab Protocol (HCE)</string>
+
+    <!-- Modos ler / gravar -->
+    <string name="mode_read">Ler</string>
+    <string name="mode_write">Gravar</string>
+
+    <!-- Formulário de gravação -->
+    <string name="write_title">Gravar na tag</string>
+    <string name="write_type_text">Texto</string>
+    <string name="write_type_link">Link / URL</string>
+    <string name="write_hint_text">Texto para gravar</string>
+    <string name="write_hint_link">Endereço (https://, tel:, mailto:…)</string>
+    <string name="write_examples">Exemplos (toque para preencher)</string>
+    <string name="write_instruction">Encoste a tag para gravar o conteúdo acima</string>
+    <string name="write_empty">Digite algo antes de encostar a tag.</string>
+
+    <string name="status_write_ready">Pronto para gravar</string>
+    <string name="status_write_ready_hint">Preencha o conteúdo e encoste uma tag NFC gravável</string>
+    <string name="status_writing">Gravando na tag…</string>
+    <string name="status_write_ok">Gravado com sucesso</string>
+    <string name="status_write_fail">Não foi possível gravar</string>
 </resources>
