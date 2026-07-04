@@ -75,6 +75,8 @@
 
             <!-- Estado da leitura -->
             <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 style="@style/Widget.HceLab.SectionCard">
 
                 <LinearLayout
