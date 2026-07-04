@@ -47,3 +47,10 @@ jobs:
           name: app-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 14
+
+      - name: Publicar APK debug do reader-tool como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: reader-tool-debug-apk
+          path: reader-tool/build/outputs/apk/debug/*.apk
+          retention-days: 14
