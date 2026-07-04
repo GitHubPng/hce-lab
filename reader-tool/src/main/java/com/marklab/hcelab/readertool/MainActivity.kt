@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -42,26 +43,52 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
     private lateinit var resultsContainer: LinearLayout
     private lateinit var clearButton: ImageButton
 
+    private var startupFailed = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        // Rede de segurança: se a inflação da tela ou o setup falhar, mostra
+        // o erro NA TELA em vez de fechar o app sem aviso. Assim dá para
+        // diagnosticar o problema mesmo sem acesso ao Logcat do aparelho.
+        try {
+            setContentView(R.layout.activity_main)
 
-        statusIcon = findViewById(R.id.statusIcon)
-        statusText = findViewById(R.id.statusText)
-        statusHint = findViewById(R.id.statusHint)
-        resultsContainer = findViewById(R.id.resultsContainer)
-        clearButton = findViewById(R.id.clearButton)
+            statusIcon = findViewById(R.id.statusIcon)
+            statusText = findViewById(R.id.statusText)
+            statusHint = findViewById(R.id.statusHint)
+            resultsContainer = findViewById(R.id.resultsContainer)
+            clearButton = findViewById(R.id.clearButton)
 
-        clearButton.setOnClickListener { reset() }
+            clearButton.setOnClickListener { reset() }
 
-        nfcAdapter = NfcAdapter.getDefaultAdapter(this)
-        if (nfcAdapter == null) {
-            showNoNfc()
+            nfcAdapter = NfcAdapter.getDefaultAdapter(this)
+            if (nfcAdapter == null) {
+                showNoNfc()
+            }
+        } catch (t: Throwable) {
+            startupFailed = true
+            Log.e("HceLabReader", "Falha ao iniciar a tela", t)
+            showFatal(t)
         }
+    }
+
+    private fun showFatal(t: Throwable) {
+        val message = "Falha ao abrir o leitor.\n\n" +
+            "${t.javaClass.simpleName}: ${t.message}\n\n" +
+            Log.getStackTraceString(t)
+        val text = TextView(this).apply {
+            text = message
+            setTextIsSelectable(true)
+            setPadding(dp(20), dp(24), dp(20), dp(24))
+            textSize = 13f
+        }
+        val scroll = android.widget.ScrollView(this).apply { addView(text) }
+        setContentView(scroll)
     }
 
     override fun onResume() {
         super.onResume()
+        if (startupFailed) return
         // Modo leitor: cobre NFC-A/B/F/V. Não usamos SKIP_NDEF para que o
         // sistema já resolva o NDEF durante o dispatch (cachedNdefMessage).
         nfcAdapter?.enableReaderMode(
