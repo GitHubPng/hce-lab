@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "hce-lab"
 include(":app")
+include(":reader-tool")

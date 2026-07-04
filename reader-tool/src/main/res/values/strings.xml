@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">HCE Lab Reader</string>
+    <string name="initial_instructions">Aguardando leitura…\n\nInstale este app num celular DIFERENTE do que roda o HCE Lab (MyHostApduService). Encoste os dois celulares. Este app manda o SELECT do AID do Lab Protocol e mostra a resposta.</string>
+</resources>
